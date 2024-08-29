@@ -22,10 +22,6 @@ module apb_pvt_sensor #(
 );
 
 
-	localparam S_IDLE   = 2'd0,
-			   S_SETUP  = 2'd1,
-			   S_ACCESS = 2'd2;
-
     // localparam int NO_OF_GROUPS = max(max(NO_OF_PSENSORS, NO_OF_VSENSORS), NO_OF_TSENSORS);
     localparam int addr_width   = $clog2(NO_OF_GROUPS*4);
 
@@ -42,7 +38,8 @@ module apb_pvt_sensor #(
 	logic [31:0] slv_reg[0:NO_OF_GROUPS-1];
 
     // APB controls
-	logic [ 1:0] current_state, next_state;
+    typedef enum logic[1:0] {S_IDLE,S_SETUP,S_ACCESS} state_t;
+	state_t current_state, next_state;
 	logic [31:0] rdata_w, rdata_r;
 	logic 		 ready_w, ready_r;
 	logic 	     write_w, write_r;
@@ -64,7 +61,47 @@ module apb_pvt_sensor #(
     logic [31:0] vsensor_o_data_32[0:NO_OF_GROUPS-1];
     logic [31:0] tsensor_o_data_32[0:NO_OF_GROUPS-1];
 
-    
+    logic wait_tsensor_valid_ffs[0:NO_OF_GROUPS-1];
+    logic wait_vsensor_valid_ffs[0:NO_OF_GROUPS-1];
+    logic wait_psensor_valid_ffs[0:NO_OF_GROUPS-1];
+
+    wire v_sensor_en[0:NO_OF_GROUPS-1];
+    wire psensor_en[0:NO_OF_GROUPS-1];
+
+    genvar k_idx;
+
+    generate
+        for(k_idx = 0; k_idx < NO_OF_GROUPS; k_idx = k_idx + 1)
+        begin
+            assign psensor_en[k_idx]  = slv_reg[k_idx][1];
+            assign v_sensor_en[k_idx] = slv_reg[k_idx][16];
+        end
+    endgenerate
+
+    // Waiting out valid of p,v,t sensor to prevent accidentaly stucking the controller
+    // If the p,v,t sensors are not enable, yet you try to access them, the outvalid would never pull up
+    // system would eventually stuck
+    always_ff@(posedge s_apb_clk or negedge s_apb_rstn)
+    begin
+        if(~s_apb_rstn)
+        begin
+            for(int i =0;i<NO_OF_GROUPS;i=i+1)
+            begin
+                wait_tsensor_valid_ffs[i] <= 0;
+                wait_vsensor_valid_ffs[i] <= 0;
+                wait_psensor_valid_ffs[i] <= 0;
+            end
+        end
+        else
+        begin
+            for(int i =0;i<NO_OF_GROUPS;i=i+1)
+            begin
+                wait_tsensor_valid_ffs[i] <=  tsensor_o_valid[i]?  0 : (t_sensor_en[i] ? 1 : 0);
+                wait_vsensor_valid_ffs[i] <=  vsensor_o_valid[i]?  0 : (psensor_en[i]  ? 1 : 0);
+                wait_psensor_valid_ffs[i] <=  psensor_o_valid[i]?  0 : (v_sensor_en[i] ? 1 : 0);
+            end
+        end
+    end
 
 	always @(*) begin
 		ready_w = ready_r;
@@ -107,8 +144,8 @@ module apb_pvt_sensor #(
                                 end
                                 else
                                 begin
-                                    rdata_w = psensor_o_data_32[i];
-                                    ready_w = psensor_o_valid[i];
+                                    rdata_w = wait_tsensor_valid_ffs[i] ? psensor_o_data_32[i] : 0;
+                                    ready_w = wait_psensor_valid_ffs[i] ? psensor_o_valid[i] : 1;
                                 end
                             end
                             (i*4+2):
@@ -120,8 +157,8 @@ module apb_pvt_sensor #(
                                 end
                                 else
                                 begin
-                                    rdata_w = vsensor_o_data_32[i];
-                                    ready_w = vsensor_o_valid[i];
+                                    rdata_w = wait_tsensor_valid_ffs[i] ? vsensor_o_data_32[i] : 0;
+                                    ready_w = wait_vsensor_valid_ffs[i] ? vsensor_o_valid[i] : 1;
                                 end
                             end
                             (i*4+3):
@@ -132,21 +169,21 @@ module apb_pvt_sensor #(
                                 end
                                 else
                                 begin
-                                    rdata_w = tsensor_o_data_32[i];
-                                    ready_w = tsensor_o_valid[i];
+                                    rdata_w = wait_tsensor_valid_ffs[i] ? tsensor_o_data_32[i] : 0;
+                                    ready_w = wait_tsensor_valid_ffs[i] ? tsensor_o_valid[i] : 1;
                                 end
                             end
-                            (i*4*NO_OF_GROUPS):
+                            ((i+NO_OF_GROUPS)*4):
                             begin
-                                rdata_w = c0_rf[i-NO_OF_GROUPS];
+                                rdata_w = c0_rf[i];
                             end
-                            (i*4*NO_OF_GROUPS+1):
+                            ((i+NO_OF_GROUPS)*4+1):
                             begin
-                                rdata_w = c1_rf[i-NO_OF_GROUPS];
+                                rdata_w = c1_rf[i];
                             end
-                            (i*4*NO_OF_GROUPS+2):
+                            ((i+NO_OF_GROUPS)*4+2):
                             begin
-                                rdata_w = a_rf[i-NO_OF_GROUPS];
+                                rdata_w = a_rf[i];
                             end
 					    endcase
 				end
@@ -193,26 +230,24 @@ module apb_pvt_sensor #(
     // a : 2,6,10,14,18,22,26,30
     logic [31:0] c0_rf[0:NO_OF_GROUPS-1],c1_rf[0:NO_OF_GROUPS-1],a_rf[0:NO_OF_GROUPS-1];
 
+    wire wr_coef_f = $signed(addr_r[addr_width+1:2] - NO_OF_GROUPS*4) >= 0;
     // prevent overflow, only greater than NO of groups makes sense add guard
     wire[31:0] coef_group_addr = ($signed(addr_r[addr_width+1:2] - NO_OF_GROUPS*4) >= 0)? addr_r[addr_width+1:2] - NO_OF_GROUPS*4 : 0;
-    
+
     always @(posedge s_apb_clk or negedge s_apb_rstn) begin
 		if (~s_apb_rstn) begin
             for(int i = 0; i < NO_OF_GROUPS; i = i + 1)
             begin
-                if(NO_OF_TSENSORS<i)
-                begin  
-			        c0_rf[i] <= 0;
-                    c1_rf[i] <= 0;
-                    a_rf[i]  <= 0;
-                end
+			    c0_rf[i] <= 0;
+                c1_rf[i] <= 0;
+                a_rf[i]  <= 0;
             end
 		end else begin
 			if (current_state == S_ACCESS) begin
-				if (write_r) begin
+				if (write_r && wr_coef_f) begin
                     for(int i = 0; i < NO_OF_GROUPS; i = i + 1)
                     begin
-                       if(NO_OF_TSENSORS < i)
+                       if(i < NO_OF_TSENSORS)
                        begin
 					        case(coef_group_addr)
                                     i*3:begin
@@ -241,7 +276,7 @@ module apb_pvt_sensor #(
 		end
 	end
 
-    
+
 	always @(posedge s_apb_clk or negedge s_apb_rstn) begin
 		if (~s_apb_rstn) begin
             for(int i = 0; i < NO_OF_GROUPS; i = i + 1)
@@ -333,9 +368,9 @@ module apb_pvt_sensor #(
 	                	.rstn	 (s_apb_rstn),
 	                	.en		 (t_sensor_en[g_idx]),
                         .i_bypass(slv_reg[g_idx][28]),
-                        .i_c0    (i_c0[g_idx]),
-                        .i_c1    (i_c1[g_idx]),
-                        .i_a     (i_a[g_idx]),
+                        .i_c0    (c0_rf[g_idx]),
+                        .i_c1    (c1_rf[g_idx]),
+                        .i_a     (a_rf[g_idx]),
 	                	.o_valid (tsensor_o_valid[g_idx]),
 	                	.o_data	 (tsensor_o_data[g_idx])
                     );
@@ -498,14 +533,14 @@ module psensor (
 endmodule
 
 // To modify, add Latency delay and bypass logic, add c0,c1,a ports for it
-module #(parameter LATENCY = 20) tsensor (
+module tsensor #(parameter LATENCY = 20)  (
     input          clk,
     input          rstn,
     input          en,
     input          i_bypass,
-    input          i_c0,
-    input          i_c1,
-    input          i_a,
+    input[31:0]    i_c0,
+    input[31:0]    i_c1,
+    input[31:0]    i_a,
     output         o_valid,
     output  [15:0] o_data
 );
@@ -520,7 +555,7 @@ module #(parameter LATENCY = 20) tsensor (
 
         reg o_valid_delayN[0:LATENCY-1];
 
-        always_ff @( posedge clk or negedge rstn ) 
+        always_ff @( posedge clk or negedge rstn )
         begin
             if(~rstn)
             begin
@@ -534,7 +569,7 @@ module #(parameter LATENCY = 20) tsensor (
                 begin
                     if(i==LATENCY-1)
                         o_valid_delayN[i] <= o_valid_r;
-                    else 
+                    else
                         o_valid_delayN[i] <= o_valid_delayN[i+1];
                 end
             end

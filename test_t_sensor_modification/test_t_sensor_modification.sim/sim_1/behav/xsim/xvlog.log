@@ -1,0 +1,13 @@
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "C:/Users/jacky/Desktop/Digwise Intern/PVT_Sensor/apb_pvt_sensor.sv" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module apb_pvt_sensor
+WARNING: [VRFC 10-3380] identifier 'addr_width' is used before its declaration [C:/Users/jacky/Desktop/Digwise Intern/PVT_Sensor/apb_pvt_sensor.sv:12]
+WARNING: [VRFC 10-3380] identifier 't_sensor_en' is used before its declaration [C:/Users/jacky/Desktop/Digwise Intern/PVT_Sensor/apb_pvt_sensor.sv:99]
+WARNING: [VRFC 10-3380] identifier 'c0_rf' is used before its declaration [C:/Users/jacky/Desktop/Digwise Intern/PVT_Sensor/apb_pvt_sensor.sv:178]
+WARNING: [VRFC 10-3380] identifier 'c1_rf' is used before its declaration [C:/Users/jacky/Desktop/Digwise Intern/PVT_Sensor/apb_pvt_sensor.sv:182]
+WARNING: [VRFC 10-3380] identifier 'a_rf' is used before its declaration [C:/Users/jacky/Desktop/Digwise Intern/PVT_Sensor/apb_pvt_sensor.sv:186]
+INFO: [VRFC 10-311] analyzing module psensor
+INFO: [VRFC 10-311] analyzing module tsensor
+WARNING: [VRFC 10-3380] identifier 'o_valid_delayN' is used before its declaration [C:/Users/jacky/Desktop/Digwise Intern/PVT_Sensor/apb_pvt_sensor.sv:552]
+INFO: [VRFC 10-311] analyzing module vsensor
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "C:/Users/jacky/Desktop/Digwise Intern/PVT_Sensor/tb.sv" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module tb

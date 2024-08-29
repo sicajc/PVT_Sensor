@@ -4,74 +4,59 @@
 module  uart_tx
 (
     input wire clk,
-    input wire rstn,
-    output reg tx,
-
+    input wire rst_n,
     input wire start,
-    
-    // load 32 bits at once
-    input load_dat;
-    input [31:0] dat,
-    input num_of_data,
 
-    output reg busy,
-    output reg done
+    // load 32 bits at once
+    input [7:0] in_data,
+
+    output reg tx,
+    output reg busy
 );
 
-typedef enum logic[3:0] {IDLE,START,DATA,STOP} state_t;
-state_t cur_st,next_st;
+typedef enum logic[3:0] {IDLE,DATA,STOP} state_t;
+state_t cur_st;
 
-reg[31:0] shift_ff;
-reg[7:0]  num_of_data_ff;
-reg[7:0]  cnt; 
+reg[7:0] shift_ff;
+reg[7:0]  cnt;
 
-wire send_done_f = cnt == num_of_data_ff*8 && cur_st == DATA; 
+wire send_done_f = cnt == 7 && cur_st == DATA;
 
-always_ff @(posedge clk or negedge rstn)
+always_ff @(posedge clk or negedge rst_n)
 begin
-    if(~rst)
+    if(~rst_n)
     begin
         cur_st   <= IDLE;
         shift_ff <= 0;
-        num_of_data_ff <= 0;
-        tx <= 1'b0;
+        tx <= 1'b1; // Active low signal
         busy <= 1'b0;
-        done <= 1'b0;
+        cnt <= 0;
     end
     else
     begin
         case(cur_st)
         IDLE:
         begin
-            cur_st <= start == 1'b1 ? START : IDLE;
-            shift_ff <= 0;
-            num_of_data_ff <= 0;
-            tx <= 1'b0;
+            cur_st <= start == 1'b1 ? DATA : IDLE;
+            shift_ff <= start == 1'b1 ? in_data : 0;
+            tx <= start == 1'b1 ? 1'b0 : 1'b1; // Start bit is 0
             busy <= start == 1'b1 ? 1'b1 : 1'b0;
-            done <= 1'b0;
             cnt  <= 0;
-        end
-        START:
-        begin
-            // waits for data to be loaded into register
-            cur_st         <= load_dat == 1'b1 ? DATA : START;
-            shift_ff       <= load_dat == 1'b1 ? dat : shift_ff;
-            num_of_data_ff <= load_dat == 1'b1 ? num_of_data : num_of_data_ff;
-            tx             <= load_dat == 1'b1 ? 1'b0 : 1'b1; // start bit
         end
         DATA:
         begin
             cur_st         <= send_done_f ? STOP : DATA;
-            shift_ff       <= shift_ff >> 1;
-            num_of_data_ff <= send_done_f ? 0 : num_of_data_ff;
-            tx             <= shift_ff[0];
+            shift_ff       <= shift_ff << 1;
+            tx             <= shift_ff[7];
             cnt            <= send_done_f ? 0 : cnt + 1;
         end
         STOP:
         begin
             cur_st  <= IDLE;
+            cnt     <= 0;
+            shift_ff <= 0;
             tx      <= 1'b1; // stop bit
-            done    <= 1'b1;
+            busy    <= 1'b0;
         end
         endcase
     end
