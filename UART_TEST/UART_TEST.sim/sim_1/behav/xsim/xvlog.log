@@ -1,4 +1,0 @@
-INFO: [VRFC 10-2263] Analyzing SystemVerilog file "C:/Users/jacky/Desktop/Digwise Intern/PVT_Sensor/uart_rx.sv" into library xil_defaultlib
-INFO: [VRFC 10-311] analyzing module uart_rx
-INFO: [VRFC 10-2263] Analyzing SystemVerilog file "C:/Users/jacky/Desktop/Digwise Intern/PVT_Sensor/uart_tb.sv" into library xil_defaultlib
-INFO: [VRFC 10-311] analyzing module uart_tb
