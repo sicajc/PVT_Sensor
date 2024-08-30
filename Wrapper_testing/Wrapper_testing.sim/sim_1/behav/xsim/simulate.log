@@ -1,0 +1,4 @@
+Time resolution is 1 ps
+Test Case 1: Initial state
+Test Case 2: write en signal to t sensor #0
+Test Case 3: write coef to t sensor #0

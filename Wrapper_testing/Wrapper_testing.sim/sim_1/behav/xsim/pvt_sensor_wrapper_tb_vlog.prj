@@ -1,0 +1,15 @@
+# compile verilog/system verilog design source files
+sv xil_defaultlib  --include "../../../../../" \
+"../../../../../psensor.sv" \
+"../../../../../pvt_sensor_wrapper.sv" \
+"../../../../../tsensor.sv" \
+"../../../../../uart_rx.sv" \
+"../../../../../uart_tx.sv" \
+"../../../../../vsensor.sv" \
+"../../../../../pvt_sensor_wrapper_tb.sv" \
+
+# compile glbl module
+verilog xil_defaultlib "glbl.v"
+
+# Do not sort compile order
+nosort
