@@ -40,16 +40,17 @@ begin
         DATA:
         begin
             cur_st         <= (send_done_f && rx == 1'b1) ? STOP : DATA;
+            out_valid <= 1'b0;
+            cnt            <=  send_done_f ? cnt : cnt + 1;
             // bit 0 of shift_ff gets rx stop bit, other shift left
             shift_ff       <= (send_done_f && rx == 1'b1) ? shift_ff : {shift_ff[6:0],rx};
-            cnt            <=  send_done_f ? cnt : cnt + 1;
         end
         STOP:
         begin
-            cur_st  <= IDLE;
-            out_valid <= 1'b1;
-            cnt <= 0;
-            data_out        <= shift_ff;
+            cur_st          <=  rx == 1'b0 ? DATA :IDLE;
+            out_valid       <=  1'b1;
+            cnt             <=  0;
+            data_out        <=  shift_ff;
         end
         endcase
     end

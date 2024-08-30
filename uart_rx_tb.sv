@@ -1,4 +1,4 @@
-module  uart_tb;
+module  uart_rx_tb;
 
 	// Inputs
 	reg clk;

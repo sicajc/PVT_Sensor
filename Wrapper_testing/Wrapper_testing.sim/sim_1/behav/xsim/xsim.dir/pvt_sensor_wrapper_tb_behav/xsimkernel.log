@@ -1,0 +1,4 @@
+Running: xsim.dir/pvt_sensor_wrapper_tb_behav/xsimk.exe -simmode gui -wdb pvt_sensor_wrapper_tb_behav.wdb -simrunnum 0 -socket 54216
+Design successfully loaded
+Design Loading Memory Usage: 8072 KB (Peak: 8072 KB)
+Design Loading CPU Usage: 0 ms

@@ -1,6 +1,3 @@
-`timescale 1ns/1ps
-`define CYCLE 10.0
-
 module tb;
 
 	parameter int NO_OF_PSENSORS = 10;
@@ -89,10 +86,14 @@ module tb;
 		for(j = 0; j < NO_OF_GROUPS; j = j + 1) begin
 			// This write the control register
 			apb_write ((j*4)*4, 32'b0000_0000_0000_0001_1111_1111_1100_0011, 4'hf);
-			apb_read  ((j*4)*4);
-			apb_read  ((j*4+1)*4);
-			apb_read  ((j*4+2)*4);
-			apb_read  ((j*4+3)*4);
+
+			apb_read  ((j*4)*4); // slv
+			apb_read  ((j*4+1)*4); // p
+			apb_read  ((j*4+2)*4); // v
+
+			// pull the enable of t sensor down
+			apb_write ((j*4)*4, 32'b0000_0000_0000_0001_1111_1111_1100_0011, 4'hf);
+			apb_read  ((j*4+3)*4); // t
 		end
 
 		// random test, generate random number and write to rand_num

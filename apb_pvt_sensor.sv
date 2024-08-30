@@ -22,7 +22,6 @@ module apb_pvt_sensor #(
 );
 
 
-    // localparam int NO_OF_GROUPS = max(max(NO_OF_PSENSORS, NO_OF_VSENSORS), NO_OF_TSENSORS);
     localparam int addr_width   = $clog2(NO_OF_GROUPS*4);
 
     // add assertions
@@ -144,7 +143,7 @@ module apb_pvt_sensor #(
                                 end
                                 else
                                 begin
-                                    rdata_w = wait_tsensor_valid_ffs[i] ? psensor_o_data_32[i] : 0;
+                                    rdata_w = wait_tsensor_valid_ffs[i] ? :psensor_o_data_32[i];
                                     ready_w = wait_psensor_valid_ffs[i] ? psensor_o_valid[i] : 1;
                                 end
                             end
@@ -157,7 +156,7 @@ module apb_pvt_sensor #(
                                 end
                                 else
                                 begin
-                                    rdata_w = wait_tsensor_valid_ffs[i] ? vsensor_o_data_32[i] : 0;
+                                    rdata_w = wait_tsensor_valid_ffs[i] ? :vsensor_o_data_32[i];
                                     ready_w = wait_vsensor_valid_ffs[i] ? vsensor_o_valid[i] : 1;
                                 end
                             end
@@ -169,7 +168,7 @@ module apb_pvt_sensor #(
                                 end
                                 else
                                 begin
-                                    rdata_w = wait_tsensor_valid_ffs[i] ? tsensor_o_data_32[i] : 0;
+                                    rdata_w = wait_tsensor_valid_ffs[i] ? :tsensor_o_data_32[i];
                                     ready_w = wait_tsensor_valid_ffs[i] ? tsensor_o_valid[i] : 1;
                                 end
                             end
@@ -433,252 +432,3 @@ module apb_pvt_sensor #(
 		end
 	endgenerate
 endmodule
-
-module psensor (
-    input          clk,
-    input          rstn,
-    input          en,
-    input   [ 3:0] sel,
-    input   [ 9:0] count,
-    output         o_valid,
-    output  [15:0] o_data
-);
-
-    `ifdef BEHAVIOR
-        reg o_valid_w, o_valid_r;
-        assign o_data = 16'hff;
-        assign o_valid = o_valid_r;
-        reg [ 9:0] cnt_w, cnt_r;
-        reg    current_state, next_state;
-        reg en_d0, en_d1;
-
-        always @(*) begin
-            cnt_w = cnt_r;
-            case (current_state)
-                0: cnt_w = 0;
-                1: cnt_w = (cnt_r < count) ? cnt_r + 1 : 0;
-            endcase
-        end
-        always @(posedge clk or negedge rstn) begin
-            if (~rstn) begin
-                cnt_r <= 0;
-            end else begin
-                cnt_r <= cnt_w;
-            end
-        end
-
-        always @(posedge clk or negedge rstn) begin
-            if (~rstn) begin
-                current_state <= 0;
-            end else begin
-                current_state <= next_state;
-            end
-        end
-
-        always @(posedge clk or negedge rstn) begin
-            if(~rstn)begin
-                o_valid_r <= 0;
-            end else begin
-                o_valid_r <= o_valid_w;
-            end
-        end
-
-        // two ff sync
-        always @(posedge clk or negedge rstn) begin
-            if (~rstn) begin
-                en_d0 <= 0;
-                en_d1 <= 0;
-            end else begin
-                en_d0 <= en;
-                en_d1 <= en_d0;
-            end
-        end
-
-        always @(*) begin
-            next_state = current_state;
-            case (current_state)
-                0: begin
-                    if (en_d1) next_state = 1;
-                    else next_state = current_state;
-                end
-                1: begin
-                    if (cnt_r >= count) next_state = 0;
-                    else next_state = current_state;
-                end
-            endcase
-        end
-
-        always @(*) begin
-            o_valid_w = o_valid_r;
-            case (current_state)
-                0: begin
-                    o_valid_w = (en_d1)? 0 : o_valid_r;
-                end
-                1: begin
-                    o_valid_w = (cnt_r == count);
-                end
-            endcase
-        end
-    `else
-        MXDWRO_1P1V u_ro (
-            .CLK        (clk),
-            .RSTn       (rstn),
-            .EN         (en),
-            .SEL        (sel),
-            .COUNT      (count),
-            .RDY        (o_valid),
-            .RO_DATAOUT (o_data)
-        );
-    `endif
-endmodule
-
-// To modify, add Latency delay and bypass logic, add c0,c1,a ports for it
-module tsensor #(parameter LATENCY = 20)  (
-    input          clk,
-    input          rstn,
-    input          en,
-    input          i_bypass,
-    input[31:0]    i_c0,
-    input[31:0]    i_c1,
-    input[31:0]    i_a,
-    output         o_valid,
-    output  [15:0] o_data
-);
-
-    `ifdef BEHAVIOR
-    	reg o_valid_w, o_valid_r;
-        // To modify, need to add fixed point16 and fp32 conversion to int8 LUT
-        assign o_data =  i_bypass ? 16'h32: 16'hff;
-        assign o_valid = o_valid_delayN[0];
-        reg [3:0] cnt_w, cnt_r;
-        reg [1:0] current_state,next_state;
-
-        reg o_valid_delayN[0:LATENCY-1];
-
-        always_ff @( posedge clk or negedge rstn )
-        begin
-            if(~rstn)
-            begin
-                for(int i = 0; i < LATENCY; i = i + 1)
-                    o_valid_delayN[i] <= 0;
-            end
-            else
-            begin
-                // delay lines
-                for(int i = 0; i < LATENCY; i = i + 1)
-                begin
-                    if(i==LATENCY-1)
-                        o_valid_delayN[i] <= o_valid_r;
-                    else
-                        o_valid_delayN[i] <= o_valid_delayN[i+1];
-                end
-            end
-        end
-
-        always @(*) begin
-            cnt_w = cnt_r;
-            case (current_state)
-                0: cnt_w = 0;
-				1: cnt_w = 0;
-                2: cnt_w = (cnt_r < 15) ? cnt_r + 1 : 0;
-            endcase
-        end
-        always @(posedge clk or negedge rstn) begin
-            if (~rstn) begin
-                cnt_r <= 0;
-            end else begin
-                cnt_r <= cnt_w;
-            end
-        end
-
-        always @(posedge clk or negedge rstn) begin
-            if (~rstn) begin
-                current_state <= 0;
-            end else begin
-                current_state <= next_state;
-            end
-        end
-
-        always @(posedge clk or negedge rstn) begin
-            if(~rstn)begin
-                o_valid_r <= 0;
-            end else begin
-                o_valid_r <= o_valid_w;
-            end
-        end
-
-        always @(*) begin
-            next_state = current_state;
-            case (current_state)
-                0: begin
-                    if (en) next_state = 1;
-                    else next_state = current_state;
-                end
-                1: begin
-                    if (~en) next_state = 2;
-                    else next_state = current_state;
-                end
-				2: begin
-                    if (cnt_r == 15) next_state = 0;
-                    else next_state = current_state;
-				end
-            endcase
-        end
-
-        always @(*) begin
-            o_valid_w = o_valid_r;
-            case (current_state)
-                0: begin
-                    o_valid_w = (en) ? 0 : o_valid_r;
-                end
-                2: begin
-                    o_valid_w = (cnt_r == 15);
-                end
-            endcase
-        end
-    `else
-        dwtn40_tsensor u_tsensor (
-            .clk     (clk),
-            .rstn    (rstn),
-            .roen    (en),
-            .o_valid (o_valid),
-            .o_data  (o_data)
-        );
-    `endif
-endmodule
-
-
-module vsensor (
-    input          clk,
-    input          en,
-    input          rstn,
-    input          calib,
-    input   [ 9:0] offset,
-    output         o_valid,
-    output         calib_done,
-    output  [ 9:0] o_data
-);
-    `ifdef BEHAVIOR
-        assign o_data = 10'd1023;
-        assign o_valid = 1;
-        assign calib_done = 0;
-    `else
-        ir_sensor u_ir_sensor (
-            .clk        (clk & en),
-            .rstn       (rstn),
-            .calib      (calib),
-            .offset     (offset),
-            .o_valid    (o_valid),
-            .calib_done (calib_done),
-            .o_data     (o_data)
-        );
-    `endif
-endmodule
-
-// Function to find the maximum of two values
-function int max(input int a, input int b);
-  if (a > b)
-    max = a;
-  else
-    max = b;
-endfunction
